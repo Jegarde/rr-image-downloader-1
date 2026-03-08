@@ -26,6 +26,7 @@ const electronAPI: ElectronAPI = {
   lookupAccount: (accountId) => ipcRenderer.invoke('lookup-account', accountId),
   searchAccounts: (username) => ipcRenderer.invoke('search-accounts', username),
   clearAccountData: (accountId) => ipcRenderer.invoke('clear-account-data', accountId),
+  resetAppState: () => ipcRenderer.invoke('reset-app-state'),
 
   loadPhotos: (accountId) => ipcRenderer.invoke('load-photos', accountId),
   loadFeedPhotos: (accountId) => ipcRenderer.invoke('load-feed-photos', accountId),

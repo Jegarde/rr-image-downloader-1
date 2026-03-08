@@ -20,6 +20,7 @@ interface CustomTitleBarProps {
   onStatsClick: () => void;
   settings: RecNetSettings;
   onUpdateSettings: (settings: Partial<RecNetSettings>) => Promise<void>;
+  onResetAppState: () => Promise<void>;
   logs: Array<{
     message: string;
     type: 'info' | 'success' | 'error' | 'warning';
@@ -33,6 +34,7 @@ interface CustomTitleBarProps {
   }>;
   onClearLogs: () => void;
   currentAccountId?: string;
+  isDownloading?: boolean;
 }
 
 export const CustomTitleBar: React.FC<CustomTitleBarProps> = ({
@@ -40,10 +42,12 @@ export const CustomTitleBar: React.FC<CustomTitleBarProps> = ({
   onStatsClick,
   settings,
   onUpdateSettings,
+  onResetAppState,
   logs,
   results,
   onClearLogs,
   currentAccountId,
+  isDownloading = false,
 }) => {
   const [isMaximized, setIsMaximized] = useState(false);
   const [debugMenuOpen, setDebugMenuOpen] = useState(false);
@@ -181,6 +185,8 @@ export const CustomTitleBar: React.FC<CustomTitleBarProps> = ({
             <SettingsPanel
               settings={settings}
               onUpdateSettings={onUpdateSettings}
+              onResetAppState={onResetAppState}
+              isDownloading={isDownloading}
               onLog={() => {
                 // Logging handled by parent component
               }}

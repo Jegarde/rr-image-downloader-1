@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FolderOpen, Settings as SettingsIcon } from 'lucide-react';
+import { FolderOpen, RotateCcw, Settings as SettingsIcon } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -15,6 +15,8 @@ import { RecNetSettings } from '../../shared/types';
 interface SettingsPanelProps {
   settings: RecNetSettings;
   onUpdateSettings: (settings: Partial<RecNetSettings>) => Promise<void>;
+  onResetAppState?: () => Promise<void>;
+  isDownloading?: boolean;
   onLog: (
     message: string,
     type?: 'info' | 'success' | 'error' | 'warning'
@@ -24,9 +26,12 @@ interface SettingsPanelProps {
 export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   settings,
   onUpdateSettings,
+  onResetAppState,
+  isDownloading = false,
   onLog,
 }) => {
   const [isSelectingFolder, setIsSelectingFolder] = useState(false);
+  const [isResettingApp, setIsResettingApp] = useState(false);
 
   const handleSelectFolder = async () => {
     if (!window.electronAPI) return;
@@ -63,6 +68,32 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
       if (!isNaN(numValue) && numValue > 0) {
         await onUpdateSettings({ maxPhotosToDownload: numValue });
       }
+    }
+  };
+
+  const handleResetAppState = async () => {
+    if (!onResetAppState || isResettingApp || isDownloading) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      'Reset app data? This removes downloaded account data, clears favorites, and restores default settings.'
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setIsResettingApp(true);
+    try {
+      await onResetAppState();
+      onLog('App data reset complete', 'success');
+    } catch (error) {
+      onLog(
+        `Failed to reset app data: ${error instanceof Error ? error.message : String(error)}`,
+        'error'
+      );
+    } finally {
+      setIsResettingApp(false);
     }
   };
 
@@ -131,6 +162,25 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             Limit the number of new photos to download for testing. Leave empty
             for no limit.
           </p>
+        </div>
+
+        <div className="space-y-2 border-t pt-4">
+          <Label htmlFor="reset-app">Reset App Data</Label>
+          <p className="text-sm text-muted-foreground">
+            Clears downloaded account data and favorites, then restores default
+            settings.
+          </p>
+          <Button
+            id="reset-app"
+            type="button"
+            variant="destructive"
+            onClick={handleResetAppState}
+            disabled={!onResetAppState || isResettingApp || isDownloading}
+            className="w-full sm:w-auto"
+          >
+            <RotateCcw className="mr-2 h-4 w-4" />
+            {isResettingApp ? 'Resetting...' : 'Reset App Data'}
+          </Button>
         </div>
       </CardContent>
     </Card>

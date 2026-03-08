@@ -676,6 +676,38 @@ const getFavoritesPath = (): string => {
   return path.join(userDataPath, 'favorites.json');
 };
 
+ipcMain.handle(
+  'reset-app-state',
+  async (): Promise<
+    ApiResponse<{
+      removedAccountDirectories: number;
+      removedLegacyFiles: number;
+      favoritesCleared: boolean;
+    }>
+  > => {
+    try {
+      const resetResult = await recNetService.resetAppState();
+      const favoritesPath = getFavoritesPath();
+      let favoritesCleared = false;
+
+      if (await fs.pathExists(favoritesPath)) {
+        await fs.remove(favoritesPath);
+        favoritesCleared = true;
+      }
+
+      return {
+        success: true,
+        data: {
+          ...resetResult,
+          favoritesCleared,
+        },
+      };
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  }
+);
+
 ipcMain.handle('get-favorites', async (): Promise<ApiResponse<string[]>> => {
   try {
     const favoritesPath = getFavoritesPath();

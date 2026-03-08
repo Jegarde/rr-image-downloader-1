@@ -46,6 +46,13 @@ export interface ElectronAPI {
   lookupAccount: (accountId: string) => Promise<ApiResponse<AccountInfo[]>>;
   searchAccounts: (username: string) => Promise<ApiResponse<AccountInfo[]>>;
   clearAccountData: (accountId: string) => Promise<ApiResponse<{ filesRemoved: number }>>;
+  resetAppState: () => Promise<
+    ApiResponse<{
+      removedAccountDirectories: number;
+      removedLegacyFiles: number;
+      favoritesCleared: boolean;
+    }>
+  >;
   loadPhotos: (accountId: string) => Promise<ApiResponse<Photo[]>>;
   loadFeedPhotos: (accountId: string) => Promise<ApiResponse<Photo[]>>;
   listAvailableAccounts: () => Promise<ApiResponse<AvailableAccount[]>>;

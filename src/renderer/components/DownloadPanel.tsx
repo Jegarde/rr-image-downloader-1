@@ -6,6 +6,7 @@ import {
   HelpCircle,
   X,
   RefreshCcw,
+  ChevronDown,
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -64,6 +65,7 @@ export const DownloadPanel: React.FC<DownloadPanelProps> = ({
   const [forceAccountsRefresh, setForceAccountsRefresh] = useState(false);
   const [forceRoomsRefresh, setForceRoomsRefresh] = useState(false);
   const [forceEventsRefresh, setForceEventsRefresh] = useState(false);
+  const [advancedOptionsOpen, setAdvancedOptionsOpen] = useState(false);
   const [folderError, setFolderError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -325,7 +327,7 @@ export const DownloadPanel: React.FC<DownloadPanelProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-h-[calc(100vh-2rem)] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Download className="h-5 w-5" />
@@ -336,6 +338,32 @@ export const DownloadPanel: React.FC<DownloadPanelProps> = ({
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
+          <div className="rounded-md border bg-muted/40 p-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              Download Flow
+            </p>
+            <ol className="mt-2 grid gap-2 text-sm sm:grid-cols-3">
+              <li className="flex items-center gap-2">
+                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-semibold">
+                  1
+                </span>
+                <span>Search username</span>
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-semibold">
+                  2
+                </span>
+                <span>Pick folder</span>
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-semibold">
+                  3
+                </span>
+                <span>Download</span>
+              </li>
+            </ol>
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="username">Username</Label>
             <Input
@@ -446,49 +474,72 @@ export const DownloadPanel: React.FC<DownloadPanelProps> = ({
           )}
 
           <div className="space-y-2">
-            <Label>Metadata Refresh</Label>
-            <p className="text-sm text-muted-foreground">
-              User, room, and event details are reused when available. Toggle
-              below to force a fresh download.
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <Button
-                type="button"
-                variant={forceAccountsRefresh ? 'destructive' : 'outline'}
-                onClick={() => setForceAccountsRefresh(value => !value)}
-                disabled={isDownloading}
-                className="justify-start"
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setAdvancedOptionsOpen(value => !value)}
+              aria-expanded={advancedOptionsOpen}
+              aria-controls="advanced-download-options"
+              className="w-full justify-between"
+            >
+              <span>Advanced options</span>
+              <ChevronDown
+                className={`h-4 w-4 transition-transform ${
+                  advancedOptionsOpen ? 'rotate-180' : ''
+                }`}
+              />
+            </Button>
+
+            {advancedOptionsOpen && (
+              <div
+                id="advanced-download-options"
+                className="rounded-md border bg-muted/20 p-3 space-y-2"
               >
-                <RefreshCcw className="mr-2 h-4 w-4" />
-                {forceAccountsRefresh
-                  ? 'Force user data refresh'
-                  : 'Use cached user data'}
-              </Button>
-              <Button
-                type="button"
-                variant={forceRoomsRefresh ? 'destructive' : 'outline'}
-                onClick={() => setForceRoomsRefresh(value => !value)}
-                disabled={isDownloading}
-                className="justify-start"
-              >
-                <RefreshCcw className="mr-2 h-4 w-4" />
-                {forceRoomsRefresh
-                  ? 'Force room data refresh'
-                  : 'Use cached room data'}
-              </Button>
-              <Button
-                type="button"
-                variant={forceEventsRefresh ? 'destructive' : 'outline'}
-                onClick={() => setForceEventsRefresh(value => !value)}
-                disabled={isDownloading}
-                className="justify-start"
-              >
-                <RefreshCcw className="mr-2 h-4 w-4" />
-                {forceEventsRefresh
-                  ? 'Force event data refresh'
-                  : 'Use cached event data'}
-              </Button>
-            </div>
+                <Label>Metadata Refresh</Label>
+                <p className="text-sm text-muted-foreground">
+                  User, room, and event details are reused when available.
+                  Toggle below to force a fresh download.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <Button
+                    type="button"
+                    variant={forceAccountsRefresh ? 'destructive' : 'outline'}
+                    onClick={() => setForceAccountsRefresh(value => !value)}
+                    disabled={isDownloading}
+                    className="justify-start"
+                  >
+                    <RefreshCcw className="mr-2 h-4 w-4" />
+                    {forceAccountsRefresh
+                      ? 'Force user data refresh'
+                      : 'Use cached user data'}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={forceRoomsRefresh ? 'destructive' : 'outline'}
+                    onClick={() => setForceRoomsRefresh(value => !value)}
+                    disabled={isDownloading}
+                    className="justify-start"
+                  >
+                    <RefreshCcw className="mr-2 h-4 w-4" />
+                    {forceRoomsRefresh
+                      ? 'Force room data refresh'
+                      : 'Use cached room data'}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={forceEventsRefresh ? 'destructive' : 'outline'}
+                    onClick={() => setForceEventsRefresh(value => !value)}
+                    disabled={isDownloading}
+                    className="justify-start"
+                  >
+                    <RefreshCcw className="mr-2 h-4 w-4" />
+                    {forceEventsRefresh
+                      ? 'Force event data refresh'
+                      : 'Use cached event data'}
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="flex gap-2">
@@ -516,7 +567,7 @@ export const DownloadPanel: React.FC<DownloadPanelProps> = ({
 
       {/* Token Help Dialog */}
       <Dialog open={tokenHelpOpen} onOpenChange={setTokenHelpOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[calc(100vh-2rem)] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>How to Get Your Token</DialogTitle>
             <DialogDescription>

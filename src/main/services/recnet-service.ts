@@ -28,6 +28,13 @@ interface CurrentOperation {
   cancelled: boolean;
 }
 
+const DEFAULT_SETTINGS: RecNetSettings = {
+  outputRoot: 'output',
+  cdnBase: 'https://img.rec.net/',
+  globalMaxConcurrentDownloads: 1,
+  interPageDelayMs: 500,
+};
+
 export class RecNetService extends EventEmitter {
   private settingsPath: string;
   private settings: RecNetSettings;
@@ -46,12 +53,7 @@ export class RecNetService extends EventEmitter {
       '.recnet-photo-downloader',
       'settings.json'
     );
-    this.settings = {
-      outputRoot: 'output',
-      cdnBase: 'https://img.rec.net/',
-      globalMaxConcurrentDownloads: 1,
-      interPageDelayMs: 500,
-    };
+    this.settings = { ...DEFAULT_SETTINGS };
     this.progress = {
       isRunning: false,
       currentStep: '',
@@ -1660,6 +1662,76 @@ export class RecNetService extends EventEmitter {
       return await this.accountsController.searchAccounts(username);
     } catch (error) {
       throw new Error(`Failed to search accounts: ${(error as Error).message}`);
+    }
+  }
+
+  async resetAppState(): Promise<{
+    removedAccountDirectories: number;
+    removedLegacyFiles: number;
+  }> {
+    let removedAccountDirectories = 0;
+    let removedLegacyFiles = 0;
+    const currentOutputRoot = this.settings.outputRoot;
+
+    try {
+      if (await fs.pathExists(currentOutputRoot)) {
+        const entries = await fs.readdir(currentOutputRoot, {
+          withFileTypes: true,
+        });
+
+        for (const entry of entries) {
+          const entryPath = path.join(currentOutputRoot, entry.name);
+
+          if (entry.isDirectory()) {
+            const metadataFiles = [
+              `${entry.name}_photos.json`,
+              `${entry.name}_feed.json`,
+              `${entry.name}_accounts.json`,
+              `${entry.name}_rooms.json`,
+              `${entry.name}_events.json`,
+            ];
+
+            let hasAppMetadata = false;
+            for (const metadataFile of metadataFiles) {
+              if (await fs.pathExists(path.join(entryPath, metadataFile))) {
+                hasAppMetadata = true;
+                break;
+              }
+            }
+
+            if (hasAppMetadata) {
+              await fs.remove(entryPath);
+              removedAccountDirectories++;
+            }
+          } else if (entry.isFile()) {
+            const isLegacyMetadata =
+              /.+_(photos|feed|accounts|rooms|events)\.json$/i.test(
+                entry.name
+              );
+            if (isLegacyMetadata) {
+              await fs.remove(entryPath);
+              removedLegacyFiles++;
+            }
+          }
+        }
+      }
+
+      this.settings = { ...DEFAULT_SETTINGS };
+      this.currentOperation = null;
+      this.progress = {
+        isRunning: false,
+        currentStep: 'Ready',
+        progress: 0,
+        total: 0,
+        current: 0,
+      };
+      this.ensureOutputDirectory();
+      await this.saveSettings();
+      this.emit('progress-update', this.progress);
+
+      return { removedAccountDirectories, removedLegacyFiles };
+    } catch (error) {
+      throw new Error(`Failed to reset app state: ${(error as Error).message}`);
     }
   }
 

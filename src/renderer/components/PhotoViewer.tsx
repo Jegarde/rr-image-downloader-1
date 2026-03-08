@@ -5,7 +5,7 @@ import React, {
   useRef,
   useMemo,
 } from 'react';
-import { Search, Filter, ArrowUpDown, Heart } from 'lucide-react';
+import { Search, Filter, ArrowUpDown, Heart, Download } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import {
@@ -31,6 +31,8 @@ interface PhotoViewerProps {
   accountId?: string;
   isDownloading?: boolean;
   onAccountChange?: (accountId: string | undefined) => void;
+  onOpenDownloadPanel?: () => void;
+  hasSelectedOutputFolder?: boolean;
   onScrollPositionChange?: (scrollTop: number) => void;
   scrollContainerRef?: React.RefObject<HTMLDivElement>;
   headerMode?: 'full' | 'compact' | 'hidden';
@@ -44,6 +46,8 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
   accountId: propAccountId,
   isDownloading = false,
   onAccountChange,
+  onOpenDownloadPanel,
+  hasSelectedOutputFolder = false,
   onScrollPositionChange,
   scrollContainerRef,
   headerMode = 'full',
@@ -462,11 +466,35 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
           <div className="text-center py-12 text-muted-foreground">
             <p>Loading accounts...</p>
           </div>
-        ) : !accountId && availableAccounts.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground">
-            <p>
-              No accounts with metadata found. Download photos to get started.
-            </p>
+        ) : !accountId && photos.length === 0 && feedPhotos.length === 0 ? (
+          <div className="mx-auto max-w-lg rounded-lg border border-dashed bg-muted/20 px-6 py-10 text-center space-y-4">
+            {hasSelectedOutputFolder ? (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  You selected an output folder, but no photos are downloaded
+                  yet.
+                </p>
+                <p className="text-xs text-muted-foreground break-all">
+                  Selected folder: {filePath}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Search a username and run your first download to populate this
+                  viewer.
+                </p>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Download photos first to view them here.
+              </p>
+            )}
+            <Button
+              onClick={onOpenDownloadPanel}
+              disabled={!onOpenDownloadPanel}
+              className="gap-2"
+            >
+              <Download className="h-4 w-4" />
+              Open Download Panel
+            </Button>
           </div>
         ) : loading ? (
           <div className="text-center py-12 text-muted-foreground">

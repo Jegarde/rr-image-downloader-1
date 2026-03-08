@@ -57,6 +57,10 @@ function App() {
       timestamp: string;
     }>
   >([]);
+  const isDefaultOutputRoot =
+    settings.outputRoot.trim().replace(/\\/g, '/').toLowerCase() === 'output';
+  const hasSelectedOutputFolder =
+    settings.outputRoot.trim() !== '' && !isDefaultOutputRoot;
 
   useEffect(() => {
     loadSettings();
@@ -146,6 +150,51 @@ function App() {
   const clearLogs = () => {
     setLogs([]);
     setResults([]);
+  };
+
+  const handleResetAppState = async () => {
+    if (!window.electronAPI) {
+      return;
+    }
+
+    if (isDownloading) {
+      addLog('Cannot reset app data while a download is active', 'warning');
+      return;
+    }
+
+    try {
+      const result = await window.electronAPI.resetAppState();
+      if (!result.success || !result.data) {
+        throw new Error(result.error || 'Failed to reset app state');
+      }
+
+      await loadSettings();
+      setCurrentAccountId('');
+      setProgress({
+        isRunning: false,
+        currentStep: 'Ready',
+        progress: 0,
+        total: 0,
+        current: 0,
+      });
+      setShowProgressPanel(false);
+      setHasScrolledPhotos(false);
+      setHasScrolledDown(false);
+      setHeaderMode('full');
+      scrollPositionRef.current = 0;
+
+      addLog(
+        `App reset complete. Removed ${result.data.removedAccountDirectories} account folders and ${result.data.removedLegacyFiles} legacy metadata files.`,
+        'success'
+      );
+      addResult('Reset App State', result.data, 'success');
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Failed to reset app state';
+      addLog(`App reset failed: ${errorMessage}`, 'error');
+      addResult('Reset App State', { error: errorMessage }, 'error');
+      throw error;
+    }
   };
 
   const isProgressIdle =
@@ -398,10 +447,12 @@ function App() {
           onStatsClick={() => setStatsDialogOpen(true)}
           settings={settings}
           onUpdateSettings={updateSettings}
+          onResetAppState={handleResetAppState}
           logs={logs}
           results={results}
           onClearLogs={clearLogs}
           currentAccountId={currentAccountId}
+          isDownloading={isDownloading}
         />
 
         <div className="container mx-auto px-4 py-4 max-w-7xl h-screen flex flex-col overflow-hidden pt-14">
@@ -453,6 +504,8 @@ function App() {
                 accountId={isDownloading ? currentAccountId : undefined}
                 isDownloading={isDownloading}
                 onAccountChange={handleViewerAccountChange}
+                onOpenDownloadPanel={() => setDownloadPanelOpen(true)}
+                hasSelectedOutputFolder={hasSelectedOutputFolder}
                 onScrollPositionChange={handlePhotoScroll}
                 scrollContainerRef={photoScrollRef}
                 headerMode={headerMode}
