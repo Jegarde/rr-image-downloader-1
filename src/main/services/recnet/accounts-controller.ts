@@ -58,18 +58,18 @@ export class AccountsController {
     return results;
   }
 
-  async lookupAccount(
+  async lookupAccountById(
     accountId: string,
     token?: string
-  ): Promise<AccountInfo[]> {
-    const accounts = await this.http.requestOrThrow<PlayerResult[]>(
+  ): Promise<AccountInfo> {
+    const account = await this.http.requestOrThrow<PlayerResult>(
       {
-        url: `https://accounts.rec.net/account/bulk?id=${encodeURIComponent(accountId)}`,
+        url: `https://accounts.rec.net/account/${encodeURIComponent(accountId)}`,
         method: 'GET',
       },
       token
     );
-    return this.normalizeAccounts(accounts);
+    return this.normalizeAccount(account);
   }
 
   async lookupAccountByUsername(

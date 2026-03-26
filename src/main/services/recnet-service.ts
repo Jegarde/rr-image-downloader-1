@@ -2115,9 +2115,9 @@ export class RecNetService extends EventEmitter {
     }
   }
 
-  async lookupAccount(accountId: string): Promise<AccountInfo[]> {
+  async lookupAccountById(accountId: string): Promise<AccountInfo> {
     try {
-      return await this.accountsController.lookupAccount(accountId);
+      return await this.accountsController.lookupAccountById(accountId);
     } catch (error) {
       throw new Error(`Failed to lookup account by account ID: ${(error as Error).message}`);
     }

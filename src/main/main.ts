@@ -443,13 +443,13 @@ ipcMain.handle('cancel-operation', async (): Promise<boolean> => {
 
 // Lookup account information by account ID
 ipcMain.handle(
-  'lookup-account',
+  'lookup-account-by-id',
   async (
     event: IpcMainInvokeEvent,
     accountId: string
-  ): Promise<ApiResponse<AccountInfo[]>> => {
+  ): Promise<ApiResponse<AccountInfo>> => {
     try {
-      const result = await recNetService.lookupAccount(accountId);
+      const result = await recNetService.lookupAccountById(accountId);
       return { success: true, data: result };
     } catch (error) {
       return { success: false, error: (error as Error).message };
