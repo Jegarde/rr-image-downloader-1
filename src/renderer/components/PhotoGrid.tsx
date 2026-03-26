@@ -11,6 +11,7 @@ import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Photo } from '../../shared/types';
 import { format } from 'date-fns';
+import { DEFAULT_CDN_BASE } from '../../shared/cdnUrl';
 import { usePhotoMetadata } from '../hooks/usePhotoMetadata';
 import { useFavorites } from '../hooks/useFavorites';
 
@@ -23,6 +24,7 @@ interface PhotoGridProps {
   roomMap?: Map<string, string>;
   accountMap?: Map<string, string>;
   eventMap?: Map<string, string>;
+  cdnBase?: string;
   scrollContainerRef?: React.RefObject<HTMLDivElement>;
   onScrollPositionChange?: (scrollTop: number) => void;
   className?: string;
@@ -38,6 +40,7 @@ const PhotoGridComponent: React.FC<PhotoGridProps> = ({
   roomMap = new Map(),
   accountMap = new Map(),
   eventMap = new Map(),
+  cdnBase = DEFAULT_CDN_BASE,
   scrollContainerRef: scrollContainerRefProp,
   onScrollPositionChange,
   className = '',
@@ -45,7 +48,7 @@ const PhotoGridComponent: React.FC<PhotoGridProps> = ({
 }) => {
   const deferredSearchQuery = useDeferredValue(searchQuery);
   const { getPhotoRoom, getPhotoUsers, getPhotoImageUrl, getPhotoEvent } =
-    usePhotoMetadata(roomMap, accountMap, eventMap);
+    usePhotoMetadata(roomMap, accountMap, eventMap, cdnBase);
   const internalScrollRef = useRef<HTMLDivElement | null>(null);
   const scrollRef = scrollContainerRefProp ?? internalScrollRef;
   const [containerSize, setContainerSize] = useState({ width: 0, height: 700 });

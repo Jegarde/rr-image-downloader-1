@@ -7,8 +7,8 @@ export type { EventDto, ImageDto, PlayerResult, RoomDto };
 
 export interface RecNetSettings {
   outputRoot: string;
+  /** Image CDN base URL (image name is appended automatically). */
   cdnBase: string;
-  globalMaxConcurrentDownloads: number;
   interPageDelayMs: number;
   maxPhotosToDownload?: number; // Limit for testing - undefined means no limit
 }

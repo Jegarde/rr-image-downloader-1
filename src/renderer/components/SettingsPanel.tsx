@@ -10,6 +10,11 @@ import {
   CardHeader,
   CardTitle,
 } from '../components/ui/card';
+import {
+  CDN_BASE_OPTIONS,
+  DEFAULT_CDN_BASE,
+  LEGACY_CDN_BASE,
+} from '../../shared/cdnUrl';
 import { RecNetSettings } from '../../shared/types';
 
 interface SettingsPanelProps {
@@ -29,11 +34,12 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
   const [isSelectingFolder, setIsSelectingFolder] = useState(false);
 
   const handleSelectFolder = async () => {
-    if (!window.electronAPI) return;
+    const api = (window as unknown as { electronAPI?: any }).electronAPI;
+    if (!api) return;
 
     setIsSelectingFolder(true);
     try {
-      const folder = await window.electronAPI.selectOutputFolder();
+      const folder = await api.selectOutputFolder();
       if (folder) {
         await onUpdateSettings({ outputRoot: folder });
         onLog(`Output folder set to: ${folder}`, 'info');
@@ -42,6 +48,15 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
       onLog(`Failed to select folder: ${error}`, 'error');
     } finally {
       setIsSelectingFolder(false);
+    }
+  };
+
+  const handleCdnChoice = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ): Promise<void> => {
+    const selected = e.target.value;
+    if (CDN_BASE_OPTIONS.includes(selected as (typeof CDN_BASE_OPTIONS)[number])) {
+      await onUpdateSettings({ cdnBase: selected });
     }
   };
 
@@ -74,7 +89,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
           Settings
         </CardTitle>
         <CardDescription>
-          Configure output path and request delays
+          Configure output path, image CDN, and request delays
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -97,6 +112,42 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             >
               <FolderOpen className="h-4 w-4" />
             </Button>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Image CDN</Label>
+          <div className="space-y-2">
+            <label className="flex items-start gap-2">
+              <input
+                type="radio"
+                name="cdnBase"
+                value={DEFAULT_CDN_BASE}
+                checked={settings.cdnBase === DEFAULT_CDN_BASE}
+                onChange={handleCdnChoice}
+              />
+              <span className="leading-5">
+                <span className="block text-sm font-medium">cdn.rec.net (recommended)</span>
+                <code className="block text-xs text-muted-foreground break-all">
+                  {DEFAULT_CDN_BASE}
+                </code>
+              </span>
+            </label>
+            <label className="flex items-start gap-2">
+              <input
+                type="radio"
+                name="cdnBase"
+                value={LEGACY_CDN_BASE}
+                checked={settings.cdnBase === LEGACY_CDN_BASE}
+                onChange={handleCdnChoice}
+              />
+              <span className="leading-5">
+                <span className="block text-sm font-medium">img.rec.net (legacy)</span>
+                <code className="block text-xs text-muted-foreground break-all">
+                  {LEGACY_CDN_BASE}
+                </code>
+              </span>
+            </label>
           </div>
         </div>
 
