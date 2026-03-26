@@ -22,6 +22,7 @@ import {
   RoomDto,
   PlayerResult,
 } from '../../shared/types';
+import { DEFAULT_CDN_BASE } from '../../shared/cdnUrl';
 import { PhotoGrid } from './PhotoGrid';
 import { PhotoDetailModal } from './PhotoDetailModal';
 import { useFavorites } from '../hooks/useFavorites';
@@ -38,6 +39,7 @@ interface PhotoViewerProps {
   onRevealOutputFolder?: () => void;
   onPhotosLoadError?: (message: string) => void;
   onPhotosLoadSuccess?: () => void;
+  cdnBase?: string;
 }
 
 type PhotoSource = 'photos' | 'feed';
@@ -54,6 +56,7 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
   onRevealOutputFolder,
   onPhotosLoadError,
   onPhotosLoadSuccess,
+  cdnBase = DEFAULT_CDN_BASE,
 }) => {
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -549,6 +552,7 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
             roomMap={roomMap}
             accountMap={accountMap}
             eventMap={eventMap}
+            cdnBase={cdnBase}
             onScrollPositionChange={onScrollPositionChange}
             scrollContainerRef={activeScrollRef}
             accountId={accountId}
@@ -563,6 +567,7 @@ export const PhotoViewer: React.FC<PhotoViewerProps> = ({
         roomMap={roomMap}
         accountMap={accountMap}
         eventMap={eventMap}
+        cdnBase={cdnBase}
       />
     </div>
   );

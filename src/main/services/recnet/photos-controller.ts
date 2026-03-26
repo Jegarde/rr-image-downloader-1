@@ -1,3 +1,4 @@
+import { buildCdnImageUrl } from '../../../shared/cdnUrl';
 import { ImageDto } from '../../models/ImageDto';
 import { GenericResponse } from '../../models/GenericResponse';
 import { RecNetHttpClient } from './http-client';
@@ -36,10 +37,10 @@ export class PhotosController {
     cdnBase: string,
     token?: string
   ): Promise<GenericResponse<ArrayBuffer>> {
-    const normalizedBase = cdnBase.endsWith('/') ? cdnBase : `${cdnBase}/`;
+    const url = buildCdnImageUrl(cdnBase, imageName);
     return this.http.request<ArrayBuffer>(
       {
-        url: `${normalizedBase}${imageName}`,
+        url,
         method: 'GET',
         responseType: 'arraybuffer',
       },

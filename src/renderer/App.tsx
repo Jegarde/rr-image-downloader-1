@@ -7,6 +7,7 @@ import { ProgressDisplay } from './components/ProgressDisplay';
 import { StatsDialog } from './components/StatsDialog';
 import { CustomTitleBar } from './components/CustomTitleBar';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { DEFAULT_CDN_BASE } from '../shared/cdnUrl';
 import {
   RecNetSettings,
   Progress,
@@ -31,8 +32,7 @@ interface DownloadRequestState {
 function App() {
   const [settings, setSettings] = useState<RecNetSettings>({
     outputRoot: 'output',
-    cdnBase: 'https://img.rec.net/',
-    globalMaxConcurrentDownloads: 1,
+    cdnBase: DEFAULT_CDN_BASE,
     interPageDelayMs: 500,
   });
 
@@ -698,6 +698,7 @@ function App() {
                 onRevealOutputFolder={handleRevealOutputFolder}
                 onPhotosLoadError={handlePhotosLoadError}
                 onPhotosLoadSuccess={clearPhotosIncident}
+                cdnBase={settings.cdnBase}
               />
             </ErrorBoundary>
           </div>

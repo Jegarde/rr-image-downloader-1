@@ -11,6 +11,7 @@ import { Button } from '../components/ui/button';
 import { Chip } from '../components/ui/chip';
 import { Photo } from '../../shared/types';
 import { format } from 'date-fns';
+import { DEFAULT_CDN_BASE } from '../../shared/cdnUrl';
 import { ExtendedPhoto, usePhotoMetadata } from '../hooks/usePhotoMetadata';
 import { useFavorites } from '../hooks/useFavorites';
 
@@ -21,6 +22,7 @@ interface PhotoDetailModalProps {
   roomMap?: Map<string, string>;
   accountMap?: Map<string, string>;
   eventMap?: Map<string, string>;
+  cdnBase?: string;
 }
 
 const PhotoDetailModalComponent: React.FC<PhotoDetailModalProps> = ({
@@ -30,9 +32,10 @@ const PhotoDetailModalComponent: React.FC<PhotoDetailModalProps> = ({
   roomMap = new Map(),
   accountMap = new Map(),
   eventMap = new Map(),
+  cdnBase = DEFAULT_CDN_BASE,
 }) => {
   const { getPhotoRoom, getPhotoUsers, getPhotoImageUrl, getPhotoEvent } =
-    usePhotoMetadata(roomMap, accountMap, eventMap);
+    usePhotoMetadata(roomMap, accountMap, eventMap, cdnBase);
   const { isFavorite, toggleFavorite } = useFavorites();
 
   if (!photo) return null;

@@ -1,4 +1,8 @@
 import { useCallback, useMemo } from 'react';
+import {
+  buildCdnImageUrl,
+  DEFAULT_CDN_BASE,
+} from '../../shared/cdnUrl';
 import { Photo } from '../../shared/types';
 
 export interface PhotoEventInfo {
@@ -66,7 +70,8 @@ const getMapValue = (
 export const usePhotoMetadata = (
   roomMap?: Map<string, string>,
   accountMap?: Map<string, string>,
-  eventMap?: Map<string, string>
+  eventMap?: Map<string, string>,
+  cdnBase = DEFAULT_CDN_BASE
 ) => {
   const fallbackMap = useMemo(() => new Map<string, string>(), []);
   const safeRoomMap = roomMap ?? fallbackMap;
@@ -105,18 +110,21 @@ export const usePhotoMetadata = (
     [safeAccountMap]
   );
 
-  const getPhotoImageUrl = useCallback((photo: Photo): string => {
-    if (photo.localFilePath) {
-      const encodedPath = encodeURIComponent(photo.localFilePath);
-      return `local://${encodedPath}`;
-    }
+  const getPhotoImageUrl = useCallback(
+    (photo: Photo): string => {
+      if (photo.localFilePath) {
+        const encodedPath = encodeURIComponent(photo.localFilePath);
+        return `local://${encodedPath}`;
+      }
 
-    if (photo.ImageName) {
-      return `https://img.rec.net/${photo.ImageName}`;
-    }
+      if (photo.ImageName) {
+        return buildCdnImageUrl(cdnBase, photo.ImageName);
+      }
 
-    return '';
-  }, []);
+      return '';
+    },
+    [cdnBase]
+  );
 
   const getPhotoEvent = useCallback(
     (photo: Photo): PhotoEventInfo => {

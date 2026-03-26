@@ -14,6 +14,10 @@ import {
   AccountInfo,
   BulkDataRefreshOptions,
 } from '../../shared/types';
+import {
+  buildCdnImageUrl,
+  DEFAULT_CDN_BASE,
+} from '../../shared/cdnUrl';
 import { EventDto } from '../models/EventDto';
 import { ImageDto } from '../models/ImageDto';
 import { PlayerResult } from '../models/PlayerDto';
@@ -42,14 +46,45 @@ interface PhotoDownloadAttempt {
 
 const DEFAULT_SETTINGS: RecNetSettings = {
   outputRoot: 'output',
-  cdnBase: 'https://img.rec.net/',
-  globalMaxConcurrentDownloads: 1,
+  cdnBase: DEFAULT_CDN_BASE,
   interPageDelayMs: 500,
 };
 
 const PHOTO_DOWNLOAD_RETRY_COUNT = 3;
 const PHOTO_DOWNLOAD_MAX_ATTEMPTS = PHOTO_DOWNLOAD_RETRY_COUNT + 1;
 const PHOTO_DOWNLOAD_RETRY_DELAY_MS = 750;
+
+function normalizeRecNetSettings(input: unknown): RecNetSettings {
+  const raw =
+    input && typeof input === 'object'
+      ? (input as Record<string, unknown>)
+      : {};
+
+  const interRaw = raw.interPageDelayMs;
+  const interPageDelayMs =
+    typeof interRaw === 'number' && Number.isFinite(interRaw)
+      ? interRaw
+      : DEFAULT_SETTINGS.interPageDelayMs;
+
+  const maxRaw = raw.maxPhotosToDownload;
+  const maxPhotosToDownload =
+    typeof maxRaw === 'number' && Number.isFinite(maxRaw) && maxRaw > 0
+      ? Math.floor(maxRaw)
+      : undefined;
+
+  return {
+    outputRoot:
+      typeof raw.outputRoot === 'string' && raw.outputRoot.length > 0
+        ? raw.outputRoot
+        : DEFAULT_SETTINGS.outputRoot,
+    cdnBase:
+      typeof raw.cdnBase === 'string' && raw.cdnBase.length > 0
+        ? raw.cdnBase
+        : DEFAULT_SETTINGS.cdnBase,
+    interPageDelayMs,
+    maxPhotosToDownload,
+  };
+}
 
 export class RecNetService extends EventEmitter {
   private settingsPath: string;
@@ -97,7 +132,10 @@ export class RecNetService extends EventEmitter {
     try {
       if (await fs.pathExists(this.settingsPath)) {
         const savedSettings = await fs.readJson(this.settingsPath);
-        this.settings = { ...this.settings, ...savedSettings };
+        this.settings = normalizeRecNetSettings({
+          ...DEFAULT_SETTINGS,
+          ...savedSettings,
+        });
         console.log('Settings loaded from disk:', this.settings);
       }
     } catch (error) {
@@ -130,7 +168,7 @@ export class RecNetService extends EventEmitter {
     newSettings: Partial<RecNetSettings>
   ): Promise<RecNetSettings> {
     await this.ensureSettingsLoaded();
-    this.settings = { ...this.settings, ...newSettings };
+    this.settings = normalizeRecNetSettings({ ...this.settings, ...newSettings });
     this.ensureOutputDirectory();
     await this.saveSettings();
     return this.settings;
@@ -888,7 +926,7 @@ export class RecNetService extends EventEmitter {
 
         const photoId = this.normalizeId(photo.Id);
         const imageName = photo.ImageName;
-        const photoUrl = `${this.settings.cdnBase}${imageName}`;
+        const photoUrl = buildCdnImageUrl(this.settings.cdnBase, imageName);
 
         if (!photoId || !imageName) {
           downloadResults.push({
@@ -1156,7 +1194,7 @@ export class RecNetService extends EventEmitter {
 
         const photoId = this.normalizeId(photo.Id);
         const imageName = photo.ImageName;
-        const photoUrl = `${this.settings.cdnBase}${imageName}`;
+        const photoUrl = buildCdnImageUrl(this.settings.cdnBase, imageName);
 
         if (!photoId || !imageName) {
           downloadResults.push({
