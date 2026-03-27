@@ -956,9 +956,9 @@ export class RecNetService extends EventEmitter {
               if (result.recoveredAfterRetry && result.recoveredAfterRetry === true) {
                 recoveredAfterRetry++;
               }
-            } else if (status && status.startsWith('already_exists')) {
+            } else if (status && (status.startsWith('already_exists') || status.startsWith('copied_from'))) {
               alreadyDownloaded++;
-            } else {
+            } else if (status && (status === 'error' || status === 'failed')) {
               failedDownloads++;
             }
             resolve(result);
@@ -1128,9 +1128,9 @@ export class RecNetService extends EventEmitter {
               if (result.recoveredAfterRetry && result.recoveredAfterRetry === true) {
                 recoveredAfterRetry++;
               }
-            } else if (status && status.startsWith('already_exists')) {
+            } else if (status && (status.startsWith('already_exists') || status.startsWith('copied_from'))) {
               alreadyDownloaded++;
-            } else {
+            } else if (status && (status === 'error' || status === 'failed')) {
               failedDownloads++;
             }
             resolve(result);
