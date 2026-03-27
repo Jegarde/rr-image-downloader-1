@@ -953,7 +953,7 @@ export class RecNetService extends EventEmitter {
               newDownloads++;
               // result attempts can be undefined and we don't want to increment successful attempts
               retryAttempts += (result.attempts || 1 - 1);
-              if (result.recoveredAfterRetry) {
+              if (result.recoveredAfterRetry && result.recoveredAfterRetry === true) {
                 recoveredAfterRetry++;
               }
             } else if (status && status.startsWith('already_exists')) {
@@ -1125,7 +1125,7 @@ export class RecNetService extends EventEmitter {
               newDownloads++;
               // result attempts can be undefined and we don't want to increment successful attempts
               retryAttempts += (result.attempts || 1 - 1);
-              if (result.recoveredAfterRetry) {
+              if (result.recoveredAfterRetry && result.recoveredAfterRetry === true) {
                 recoveredAfterRetry++;
               }
             } else if (status && status.startsWith('already_exists')) {
