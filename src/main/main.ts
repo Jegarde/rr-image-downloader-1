@@ -441,15 +441,31 @@ ipcMain.handle('cancel-operation', async (): Promise<boolean> => {
   return recNetService.cancelCurrentOperation();
 });
 
-// Lookup account information
+// Lookup account information by account ID
 ipcMain.handle(
-  'lookup-account',
+  'lookup-account-by-id',
   async (
     event: IpcMainInvokeEvent,
     accountId: string
-  ): Promise<ApiResponse<AccountInfo[]>> => {
+  ): Promise<ApiResponse<AccountInfo>> => {
     try {
-      const result = await recNetService.lookupAccount(accountId);
+      const result = await recNetService.lookupAccountById(accountId);
+      return { success: true, data: result };
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
+  }
+);
+
+// Lookup account information by username
+ipcMain.handle(
+  'lookup-account-by-username',
+  async (
+    event: IpcMainInvokeEvent,
+    username: string
+  ): Promise<ApiResponse<AccountInfo>> => {
+    try {
+      const result = await recNetService.lookupAccountByUsername(username);
       return { success: true, data: result };
     } catch (error) {
       return { success: false, error: (error as Error).message };

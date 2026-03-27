@@ -23,7 +23,9 @@ const electronAPI: ElectronAPI = {
     ipcRenderer.removeListener('progress-update', callback);
   },
 
-  lookupAccount: (accountId) => ipcRenderer.invoke('lookup-account', accountId),
+  lookupAccountById: (accountId) => ipcRenderer.invoke('lookup-account-by-id', accountId),
+  lookupAccountByUsername: (username: string) =>
+    ipcRenderer.invoke('lookup-account-by-username', username),
   searchAccounts: (username: string, token?: string) =>
     ipcRenderer.invoke('search-accounts', username, token),
   clearAccountData: (accountId) => ipcRenderer.invoke('clear-account-data', accountId),
