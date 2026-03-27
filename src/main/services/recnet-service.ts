@@ -941,10 +941,26 @@ export class RecNetService extends EventEmitter {
       for (const photo of sortedPhotos) {
         promises.push(new Promise(async (resolve) => {
           const result = await this.downloadImage(photo, photosDir, feedDir, false);
+          const status = result.status;
+          if (status === 'downloaded') {
+            newDownloads++;
+          } else if (status && status.startsWith('already_exists')) {
+            alreadyDownloaded++;
+          } else {
+            failedDownloads++;
+          }
           processedCount++;
           this.updateProgress('Downloading user photos...', processedCount, totalPhotos);
           resolve(result);
         }))
+
+        decrementRemainingSlots();
+        if (
+          remainingDownloadSlots &&
+          remainingDownloadSlots <= 0
+        ) {
+          break;
+        }
       }
       await Promise.all(promises);
 
@@ -1087,6 +1103,14 @@ export class RecNetService extends EventEmitter {
       for (const photo of sortedPhotos) {
         promises.push(new Promise(async (resolve) => {
           const result = await this.downloadImage(photo, photosDir, feedPhotosDir, true);
+          const status = result.status;
+          if (status === 'downloaded') {
+            newDownloads++;
+          } else if (status && status.startsWith('already_exists')) {
+            alreadyDownloaded++;
+          } else {
+            failedDownloads++;
+          }
           processedCount++;
           this.updateProgress('Downloading feed photos...', processedCount, totalPhotos);
           resolve(result);
