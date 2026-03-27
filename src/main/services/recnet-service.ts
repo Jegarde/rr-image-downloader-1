@@ -1173,20 +1173,11 @@ export class RecNetService extends EventEmitter {
       throw new Error('Operation cancelled');
     }
 
-    /*
-    this.updateProgress(
-      isFeed ? 'Downloading feed photos...' : 'Downloading photos...',
-      0,
-      0
-    );
-    */
-
     const photoId = this.normalizeId(photo.Id);
     const imageName = photo.ImageName;
     const photoUrl = buildCdnImageUrl(this.settings.cdnBase, imageName);
 
     if (!photoId || !imageName) {
-      //processedCount++;
       return {
         error: 'invalid_photo_data',
         photoId,
@@ -1200,8 +1191,6 @@ export class RecNetService extends EventEmitter {
 
     // Check if photo already exists
     if (await fs.pathExists(photoPath)) {
-      //alreadyDownloaded++;
-      //processedCount++;
       return {
         photoId,
         status: isFeed ? 'already_exists_in_feed' : 'already_exists_in_photos',
@@ -1213,9 +1202,6 @@ export class RecNetService extends EventEmitter {
     const otherPhotoPath = path.join(isFeed ? photosDir : feedPhotosDir, `${photoId}.jpg`);
     if (await fs.pathExists(otherPhotoPath)) {
       await fs.copy(otherPhotoPath, photoPath);
-      //alreadyDownloaded++;
-      //decrementRemainingSlots();
-      //processedCount++;
       return {
         photoId,
         status: isFeed ? 'copied_from_photos' : 'copied_from_feed',
@@ -1223,22 +1209,6 @@ export class RecNetService extends EventEmitter {
         destinationPath: photoPath,
       };
     }
-
-    /*
-    if (
-      remainingDownloadSlots !== undefined &&
-      remainingDownloadSlots <= 0
-    ) {
-      skipped++;
-      downloadResults.push({
-        photoId,
-        status: 'skipped_limit_reached',
-        url: photoUrl,
-      });
-      processedCount++;
-      continue;
-    }
-      */
 
     let attemptsUsed = 1;
     try {
@@ -1259,11 +1229,6 @@ export class RecNetService extends EventEmitter {
       if (response?.success && response.value) {
         const data = Buffer.from(response.value);
         await fs.writeFile(photoPath, data);
-
-        /*
-        newDownloads++;
-        decrementRemainingSlots();
-        */
         return {
           photoId,
           status: 'downloaded',
@@ -1274,7 +1239,6 @@ export class RecNetService extends EventEmitter {
           retries: Math.max(0, attempt.attempts - 1),
         };
       } else if (response) {
-        //failedDownloads++;
         return {
           photoId,
           status: 'failed',
@@ -1292,7 +1256,6 @@ export class RecNetService extends EventEmitter {
         throw error;
       }
 
-      //failedDownloads++;
       return {
         photoId,
         status: 'error',
@@ -1302,20 +1265,6 @@ export class RecNetService extends EventEmitter {
         retries: Math.max(0, attemptsUsed - 1),
       };
     }
-
-    // Rate limiting
-    /*
-    if (this.settings.interPageDelayMs > 0) {
-      await this.delay(this.settings.interPageDelayMs);
-    }
-
-    processedCount++;
-    this.updateProgress(
-      'Downloading feed photos...',
-      processedCount,
-      totalPhotos
-    );
-    */
   }
 
   private normalizeId(value: unknown): string {
