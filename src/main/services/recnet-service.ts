@@ -27,6 +27,7 @@ import { EventsController } from './recnet/events-controller';
 import { RecNetHttpClient } from './recnet/http-client';
 import { PhotosController } from './recnet/photos-controller';
 import { RoomsController } from './recnet/rooms-controller';
+import { Semaphore } from '../utils/semaphore';
 
 interface CurrentOperation {
   cancelled: boolean;
@@ -68,6 +69,7 @@ const DEFAULT_SETTINGS: RecNetSettings = {
 const PHOTO_DOWNLOAD_RETRY_COUNT = 3;
 const PHOTO_DOWNLOAD_MAX_ATTEMPTS = PHOTO_DOWNLOAD_RETRY_COUNT + 1;
 const PHOTO_DOWNLOAD_RETRY_DELAY_MS = 750;
+const PHOTO_DOWNLOAD_MAX_CONCURRENT_REQUESTS = 30;
 
 function normalizeRecNetSettings(input: unknown): RecNetSettings {
   const raw =
@@ -932,6 +934,7 @@ export class RecNetService extends EventEmitter {
 
       let delay = 0;
       const promises = [];
+      const semaphore = new Semaphore(PHOTO_DOWNLOAD_MAX_CONCURRENT_REQUESTS);
       for (const photo of sortedPhotos) {
         if (hasDownloadLimit && remainingDownloadSlots <= 0) { 
           break;
@@ -942,19 +945,28 @@ export class RecNetService extends EventEmitter {
 
         promises.push(new Promise(async (resolve) => {
           if (delay) { await this.delay(delay); }
-
-          const result = await this.downloadImage(photo, photosDir, feedDir, false);
-          const status = result.status;
-          if (status === 'downloaded') {
-            newDownloads++;
-          } else if (status && status.startsWith('already_exists')) {
-            alreadyDownloaded++;
-          } else {
-            failedDownloads++;
+          await semaphore.acquire();
+          try {
+            const result = await this.downloadImage(photo, photosDir, feedDir, false);
+            const status = result.status;
+            if (status === 'downloaded') {
+              newDownloads++;
+            } else if (status && status.startsWith('already_exists')) {
+              alreadyDownloaded++;
+            } else {
+              failedDownloads++;
+            }
+            resolve(result);
           }
-          processedCount++;
-          this.updateProgress('Downloading user photos...', processedCount, totalPhotos);
-          resolve(result);
+          catch (error) {
+            // downloadImage already has error handling, if it throws, we'll assume it's fatal
+            throw error;
+          }
+          finally {
+            semaphore.release()
+            this.updateProgress('Downloading user photos...', processedCount, totalPhotos);
+            processedCount++;
+          };
         }))
         delay += this.settings.interPageDelayMs;
       }
