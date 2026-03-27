@@ -941,6 +941,8 @@ export class RecNetService extends EventEmitter {
       for (const photo of sortedPhotos) {
         promises.push(new Promise(async (resolve) => {
           const result = await this.downloadImage(photo, photosDir, feedDir, false);
+          processedCount++;
+          this.updateProgress('Downloading user photos...', processedCount, totalPhotos);
           resolve(result);
         }))
       }
@@ -1085,6 +1087,8 @@ export class RecNetService extends EventEmitter {
       for (const photo of sortedPhotos) {
         promises.push(new Promise(async (resolve) => {
           const result = await this.downloadImage(photo, photosDir, feedPhotosDir, true);
+          processedCount++;
+          this.updateProgress('Downloading feed photos...', processedCount, totalPhotos);
           resolve(result);
         }))
       }
@@ -1124,11 +1128,13 @@ export class RecNetService extends EventEmitter {
       throw new Error('Operation cancelled');
     }
 
+    /*
     this.updateProgress(
       isFeed ? 'Downloading feed photos...' : 'Downloading photos...',
       0,
       0
     );
+    */
 
     const photoId = this.normalizeId(photo.Id);
     const imageName = photo.ImageName;
