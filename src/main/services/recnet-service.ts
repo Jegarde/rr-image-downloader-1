@@ -202,6 +202,9 @@ export class RecNetService extends EventEmitter {
     total: number,
     progress?: number
   ): void {
+    if (this.currentOperation?.cancelled) {
+      return;
+    }
     this.progress = this.createProgressState({
       ...this.progress,
       isRunning: true,
@@ -980,6 +983,10 @@ export class RecNetService extends EventEmitter {
       }
       const downloadResults: DownloadResultItem[] = await Promise.all<DownloadResultItem>(promises);
 
+      if (this.currentOperation?.cancelled) {
+        throw new Error('Operation cancelled');
+      }
+
       this.setOperationComplete();
 
       const downloadStats: DownloadStats = {
@@ -1016,6 +1023,10 @@ export class RecNetService extends EventEmitter {
     await this.ensureSettingsLoaded();
 
     try {
+      if (this.currentOperation?.cancelled) {
+        throw new Error('Operation cancelled');
+      }
+      this.currentOperation = { cancelled: false };
       this.resetProgressIssueState();
       this.updateProgress('Downloading feed photos...', 0, 0, 0);
       const accountDir = path.join(this.settings.outputRoot, accountId);
@@ -1060,25 +1071,9 @@ export class RecNetService extends EventEmitter {
         file.toLowerCase().endsWith('.jpg')
       ).length;
       let remainingDownloadSlots = (maxPhotosToDownload || 0) - existingFeedFiles;
-      
-      if (this.currentOperation && this.currentOperation.cancelled) {
-        this.setOperationComplete();
-        return {
-          accountId,
-          feedPhotosDirectory: feedPhotosDir,
-          processedCount: 0,
-          downloadStats: {
-            totalPhotos,
-            alreadyDownloaded: existingFeedFiles,
-            newDownloads: 0,
-            failedDownloads: 0,
-            skipped: totalPhotos,
-            retryAttempts: 0,
-            recoveredAfterRetry: 0,
-          },
-          downloadResults: [],
-          totalResults: 0,
-        };
+
+      if (this.currentOperation?.cancelled) {
+        throw new Error('Operation cancelled');
       }
 
       if (hasDownloadLimit && remainingDownloadSlots === 0) {
@@ -1174,7 +1169,11 @@ export class RecNetService extends EventEmitter {
         delay += this.settings.interPageDelayMs;
       }
       const downloadResults: DownloadResultItem[] = await Promise.all<DownloadResultItem>(promises);
-      
+
+      if (this.currentOperation?.cancelled) {
+        throw new Error('Operation cancelled');
+      }
+
       this.setOperationComplete();
 
       const downloadStats: DownloadStats = {

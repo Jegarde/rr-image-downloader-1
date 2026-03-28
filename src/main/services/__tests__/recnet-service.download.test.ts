@@ -19,6 +19,7 @@ import { RecNetService } from '../recnet-service';
 import { PhotosController } from '../recnet/photos-controller';
 import { ImageDto } from '../../models/ImageDto';
 import { GenericResponse } from '../../models/GenericResponse';
+import type { Progress } from '../../../shared/types';
 
 // Mock dependencies
 jest.mock('fs-extra', () => {
@@ -480,6 +481,76 @@ describe('RecNetService - Download Functionality', () => {
     });
 
     /**
+     * When every parallel worker returns { status: 'cancelled' } (no rejection),
+     * downloadPhotos must still reject so the UI pipeline stops instead of showing Complete.
+     * After cancel, progress must not flip back to isRunning (worker finally blocks
+     * must not revive a running bar).
+     */
+    it('should reject when cancelled after download loop starts and not revive running progress', async () => {
+      const photos: ImageDto[] = [
+        createMockPhoto('photo-1', 'image1.jpg'),
+        createMockPhoto('photo-2', 'image2.jpg'),
+        createMockPhoto('photo-3', 'image3.jpg'),
+      ];
+
+      const photosJsonPath = path.join(
+        testOutputDir,
+        testAccountId,
+        `${testAccountId}_photos.json`
+      );
+      const photosDir = path.join(testOutputDir, testAccountId, 'photos');
+
+      (mockedFs.pathExists as jest.Mock).mockImplementation(
+        async (p: string) => {
+          if (p === photosJsonPath) return true;
+          if (p.startsWith(path.join(photosDir, 'photo-'))) return false;
+          return false;
+        }
+      );
+
+      (mockedFs.readJson as jest.Mock).mockResolvedValue(photos);
+      (mockedFs.readdir as jest.Mock).mockResolvedValue([]);
+
+      mockPhotosController.downloadPhoto.mockImplementation(
+        async () =>
+          ({
+            success: true,
+            value: new ArrayBuffer(8),
+            status: 200,
+          }) as GenericResponse<ArrayBuffer>
+      );
+
+      let cancelRequested = false;
+      let sawCancelledState = false;
+      const runningAfterCancelled: Progress[] = [];
+
+      service.on('progress-update', (prog: Progress) => {
+        if (
+          !cancelRequested &&
+          prog.isRunning &&
+          prog.total === photos.length &&
+          prog.currentStep?.includes('Downloading user photos')
+        ) {
+          cancelRequested = true;
+          service.cancelCurrentOperation();
+        }
+        if (!prog.isRunning && prog.currentStep === 'Cancelled') {
+          sawCancelledState = true;
+        }
+        if (sawCancelledState && prog.isRunning) {
+          runningAfterCancelled.push({ ...prog });
+        }
+      });
+
+      await expect(service.downloadPhotos(testAccountId)).rejects.toThrow(
+        'Operation cancelled'
+      );
+
+      expect(sawCancelledState).toBe(true);
+      expect(runningAfterCancelled.length).toBe(0);
+    });
+
+    /**
      * Verifies that photos with missing or invalid data (no ID or image name)
      * are skipped and recorded as errors rather than causing the entire process to fail.
      */
@@ -626,6 +697,15 @@ describe('RecNetService - Download Functionality', () => {
 
       await expect(service.downloadFeedPhotos(testAccountId)).rejects.toThrow(
         'Feed photos not collected. Run collect feed photos first.'
+      );
+    });
+
+    it('should reject when cancelled flag is set before feed download starts', async () => {
+      (service as unknown as { currentOperation: { cancelled: boolean } }).currentOperation =
+        { cancelled: true };
+
+      await expect(service.downloadFeedPhotos(testAccountId)).rejects.toThrow(
+        'Operation cancelled'
       );
     });
   });
