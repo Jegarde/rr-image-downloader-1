@@ -121,11 +121,11 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
             type="number"
             value={settings.interPageDelayMs}
             onChange={handleDelayChange}
-            min="1"
-            max="5000"
+            min="0"
+            max="1000"
           />
           <p className="text-sm text-muted-foreground">
-            Milliseconds between requests (minimum 500ms recommended)
+            Milliseconds between requests.
           </p>
         </div>
 

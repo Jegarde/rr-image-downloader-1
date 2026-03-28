@@ -64,7 +64,7 @@ type FolderMetaV1 = {
 const DEFAULT_SETTINGS: RecNetSettings = {
   outputRoot: 'output',
   cdnBase: DEFAULT_CDN_BASE,
-  interPageDelayMs: 500,
+  interPageDelayMs: 0,
 };
 
 const PHOTO_DOWNLOAD_RETRY_COUNT = 3;
