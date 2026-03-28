@@ -986,7 +986,8 @@ export class RecNetService extends EventEmitter {
       const semaphore = new Semaphore(PHOTO_DOWNLOAD_MAX_CONCURRENT_REQUESTS);
       for (const photo of sortedPhotos) {
         if (hasDownloadLimit && remainingDownloadSlots <= 0) {
-          skipped = totalPhotos - (alreadyDownloaded + newDownloads);
+          // Promises not yet resolved: cannot use alreadyDownloaded/newDownloads here
+          skipped = totalPhotos - promises.length;
           break;
         } else {
           remainingDownloadSlots--;
@@ -1028,6 +1029,7 @@ export class RecNetService extends EventEmitter {
                   (status === 'error' || status === 'failed')
                 ) {
                   failedDownloads++;
+                  retryAttempts += (result.attempts || 1) - 1;
                 } else if (status && status === 'cancelled') {
                   skipped++;
                 }
@@ -1194,7 +1196,7 @@ export class RecNetService extends EventEmitter {
       const semaphore = new Semaphore(PHOTO_DOWNLOAD_MAX_CONCURRENT_REQUESTS);
       for (const photo of sortedPhotos) {
         if (hasDownloadLimit && remainingDownloadSlots <= 0) {
-          skipped = totalPhotos - (alreadyDownloaded + newDownloads);
+          skipped = totalPhotos - promises.length;
           break;
         } else {
           remainingDownloadSlots--;
@@ -1236,6 +1238,7 @@ export class RecNetService extends EventEmitter {
                   (status === 'error' || status === 'failed')
                 ) {
                   failedDownloads++;
+                  retryAttempts += (result.attempts || 1) - 1;
                 } else if (status && status === 'cancelled') {
                   skipped++;
                 }
