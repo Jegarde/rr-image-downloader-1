@@ -996,6 +996,9 @@ export class RecNetService extends EventEmitter {
         promises.push(
           new Promise<DownloadResultItem>((resolve, reject) => {
             void (async () => {
+              if (delay) {
+                await this.delay(delay);
+              }
               await semaphore.acquire();
               try {
                 const result = await this.downloadImage(
@@ -1003,8 +1006,7 @@ export class RecNetService extends EventEmitter {
                   photosDir,
                   feedDir,
                   false,
-                  token,
-                  delay
+                  token
                 );
                 const status = result.status;
                 if (status === 'downloaded') {
@@ -1204,6 +1206,9 @@ export class RecNetService extends EventEmitter {
         promises.push(
           new Promise<DownloadResultItem>((resolve, reject) => {
             void (async () => {
+              if (delay) {
+                await this.delay(delay);
+              }
               await semaphore.acquire();
               try {
                 const result = await this.downloadImage(
@@ -1212,7 +1217,6 @@ export class RecNetService extends EventEmitter {
                   feedPhotosDir,
                   true,
                   token,
-                  delay
                 );
                 const status = result.status;
                 if (status === 'downloaded') {
@@ -1302,7 +1306,6 @@ export class RecNetService extends EventEmitter {
     feedPhotosDir: string,
     isFeed: boolean,
     token?: string,
-    delayBeforeDownloadMs = 0
   ): Promise<DownloadResultItem> {
     const photoId = this.normalizeId(photo.Id);
     const imageName = photo.ImageName;
@@ -1349,13 +1352,6 @@ export class RecNetService extends EventEmitter {
         sourcePath: otherPhotoPath,
         destinationPath: photoPath,
       };
-    }
-
-    if (delayBeforeDownloadMs > 0) {
-      await this.delay(delayBeforeDownloadMs);
-      if (this.isOperationCancelled()) {
-        throw new Error('Operation cancelled');
-      }
     }
 
     let attemptsUsed = 1;
