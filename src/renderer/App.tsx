@@ -84,14 +84,12 @@ function App() {
       timestamp: string;
     }>
   >([]);
-  const [downloadDraft, setDownloadDraft] = useState<DownloadRequestState | null>(
-    null
-  );
+  const [downloadDraft, setDownloadDraft] =
+    useState<DownloadRequestState | null>(null);
   const [lastDownloadRequest, setLastDownloadRequest] =
     useState<DownloadRequestState | null>(null);
-  const [activeIncident, setActiveIncident] = useState<UserFacingIncident | null>(
-    null
-  );
+  const [activeIncident, setActiveIncident] =
+    useState<UserFacingIncident | null>(null);
 
   useEffect(() => {
     loadSettings();
@@ -117,8 +115,7 @@ function App() {
         setSettings(loadedSettings);
       }
     } catch (error) {
-      const msg =
-        error instanceof Error ? error.message : 'Unknown error';
+      const msg = error instanceof Error ? error.message : 'Unknown error';
       addLog(`Failed to load settings: ${msg}`, 'error');
       setActiveIncident(createUserIncident('settings', msg));
     }
@@ -128,7 +125,10 @@ function App() {
     if (window.electronAPI) {
       window.electronAPI.onProgress((event, progressData) => {
         setProgress(progressData);
-        if (progressData.statusLevel !== 'info' || progressData.issueCount > 0) {
+        if (
+          progressData.statusLevel !== 'info' ||
+          progressData.issueCount > 0
+        ) {
           setShowProgressPanel(true);
         }
       });
@@ -141,12 +141,8 @@ function App() {
         await window.electronAPI.loadPhotos(accountId);
       }
     } catch (error) {
-      const msg =
-        error instanceof Error ? error.message : 'Unknown error';
-      addLog(
-        `Failed to load photos for account ${accountId}: ${msg}`,
-        'error'
-      );
+      const msg = error instanceof Error ? error.message : 'Unknown error';
+      addLog(`Failed to load photos for account ${accountId}: ${msg}`, 'error');
       setActiveIncident(createUserIncident('photos', msg));
     }
   };
@@ -180,26 +176,23 @@ function App() {
     setActiveIncident(prev => (prev?.source === 'photos' ? null : prev));
   }, []);
 
-  const handleOpenPathInExplorer = useCallback(
-    async (folderPath: string) => {
-      if (!window.electronAPI?.openPathInExplorer) {
-        return;
-      }
-      const r = await window.electronAPI.openPathInExplorer(folderPath);
-      if (!r.success) {
-        const timestamp = new Date().toLocaleTimeString();
-        setLogs(prev => [
-          ...prev.slice(-99),
-          {
-            message: r.error ?? 'Could not open folder',
-            type: 'error' as const,
-            timestamp,
-          },
-        ]);
-      }
-    },
-    []
-  );
+  const handleOpenPathInExplorer = useCallback(async (folderPath: string) => {
+    if (!window.electronAPI?.openPathInExplorer) {
+      return;
+    }
+    const r = await window.electronAPI.openPathInExplorer(folderPath);
+    if (!r.success) {
+      const timestamp = new Date().toLocaleTimeString();
+      setLogs(prev => [
+        ...prev.slice(-99),
+        {
+          message: r.error ?? 'Could not open folder',
+          type: 'error' as const,
+          timestamp,
+        },
+      ]);
+    }
+  }, []);
 
   const addResult = (
     operation: string,
@@ -302,10 +295,7 @@ function App() {
           username,
           token.trim() || undefined
         );
-        if (
-          !searchResult.success ||
-          !searchResult.data
-        ) {
+        if (!searchResult.success || !searchResult.data) {
           throw new Error('Account not found');
         }
 
@@ -516,8 +506,7 @@ function App() {
             : prev.currentStep === 'Failed'
               ? 'Failed'
               : 'Complete',
-        progress:
-          prev.currentStep === 'Cancelled' ? prev.progress : 100,
+        progress: prev.currentStep === 'Cancelled' ? prev.progress : 100,
         total: 0,
         current: 0,
       }));
@@ -564,16 +553,7 @@ function App() {
       if (window.electronAPI) {
         const cancelled = await window.electronAPI.cancelOperation();
         if (cancelled) {
-          addLog('Download cancelled', 'warning');
-          setIsDownloading(false);
-          setProgress(prev => ({
-            ...prev,
-            isRunning: false,
-            currentStep: 'Cancelled',
-            progress: 0,
-            total: 0,
-            current: 0,
-          }));
+          addLog('Cancelling download...', 'warning');
         }
       }
     } catch (error) {
@@ -620,25 +600,25 @@ function App() {
     <FavoritesProvider>
       <div className="min-h-screen bg-background">
         {/* Custom Title Bar */}
-          <CustomTitleBar
-            onDownloadClick={() => setDownloadPanelOpen(true)}
-            onStatsClick={() => setStatsDialogOpen(true)}
-            settings={settings}
-            onUpdateSettings={updateSettings}
-            logs={logs}
-            results={results}
-            onClearLogs={clearLogs}
-            currentAccountId={currentAccountId}
-            debugMenuOpen={debugMenuOpen}
-            onDebugMenuOpenChange={setDebugMenuOpen}
-            resultsScrollRequestId={resultsScrollRequestId}
-            onRetryDownload={handleRetryDownload}
-            canRetryDownload={canRetryDownload}
-            isRetryingDownload={isDownloading}
-            onOpenDownloadPanel={() => setDownloadPanelOpen(true)}
-            onOpenOutputFolder={handleOpenPathInExplorer}
-            outputRoot={settings.outputRoot}
-          />
+        <CustomTitleBar
+          onDownloadClick={() => setDownloadPanelOpen(true)}
+          onStatsClick={() => setStatsDialogOpen(true)}
+          settings={settings}
+          onUpdateSettings={updateSettings}
+          logs={logs}
+          results={results}
+          onClearLogs={clearLogs}
+          currentAccountId={currentAccountId}
+          debugMenuOpen={debugMenuOpen}
+          onDebugMenuOpenChange={setDebugMenuOpen}
+          resultsScrollRequestId={resultsScrollRequestId}
+          onRetryDownload={handleRetryDownload}
+          canRetryDownload={canRetryDownload}
+          isRetryingDownload={isDownloading}
+          onOpenDownloadPanel={() => setDownloadPanelOpen(true)}
+          onOpenOutputFolder={handleOpenPathInExplorer}
+          outputRoot={settings.outputRoot}
+        />
 
         <div className="container mx-auto px-4 py-4 max-w-7xl h-screen flex flex-col overflow-hidden pt-14">
           <ErrorRecoveryBanner
@@ -685,6 +665,7 @@ function App() {
                 startedAt={downloadStartedAt}
                 durationMs={lastDownloadDurationMs}
                 onClose={() => setShowProgressPanel(false)}
+                onCancel={handleCancelDownload}
                 onOpenOperationResults={openOperationResults}
                 onOpenDownloadPanel={() => setDownloadPanelOpen(true)}
                 onRetryDownload={handleRetryDownload}

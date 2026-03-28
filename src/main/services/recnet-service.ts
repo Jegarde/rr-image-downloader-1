@@ -14,10 +14,7 @@ import {
   AccountInfo,
   BulkDataRefreshOptions,
 } from '../../shared/types';
-import {
-  buildCdnImageUrl,
-  DEFAULT_CDN_BASE,
-} from '../../shared/cdnUrl';
+import { buildCdnImageUrl, DEFAULT_CDN_BASE } from '../../shared/cdnUrl';
 import { EventDto } from '../models/EventDto';
 import { ImageDto } from '../models/ImageDto';
 import { PlayerResult } from '../models/PlayerDto';
@@ -186,7 +183,10 @@ export class RecNetService extends EventEmitter {
     newSettings: Partial<RecNetSettings>
   ): Promise<RecNetSettings> {
     await this.ensureSettingsLoaded();
-    this.settings = normalizeRecNetSettings({ ...this.settings, ...newSettings });
+    this.settings = normalizeRecNetSettings({
+      ...this.settings,
+      ...newSettings,
+    });
     this.ensureOutputDirectory();
     await this.saveSettings();
     return this.settings;
@@ -196,12 +196,31 @@ export class RecNetService extends EventEmitter {
     return { ...this.progress };
   }
 
+  private isOperationCancelled(): boolean {
+    return this.currentOperation?.cancelled === true;
+  }
+
+  private throwIfCancelled(): void {
+    if (this.isOperationCancelled()) {
+      throw new Error('Operation cancelled');
+    }
+  }
+
   private updateProgress(
     step: string,
     current: number,
     total: number,
     progress?: number
   ): void {
+    if (
+      this.isOperationCancelled() ||
+      (!this.currentOperation &&
+        !this.progress.isRunning &&
+        ['Cancelled', 'Complete', 'Failed'].includes(this.progress.currentStep))
+    ) {
+      return;
+    }
+
     this.progress = this.createProgressState({
       ...this.progress,
       isRunning: true,
@@ -222,6 +241,7 @@ export class RecNetService extends EventEmitter {
       total: 0,
       progress: 100,
     });
+    this.currentOperation = null;
     this.emit('progress-update', this.progress);
   }
 
@@ -238,19 +258,34 @@ export class RecNetService extends EventEmitter {
       failedItems: Math.max(this.progress.failedItems, 1),
       lastIssue: message,
     });
+    this.currentOperation = null;
+    this.emit('progress-update', this.progress);
+  }
+
+  private setOperationCancelled(): void {
+    this.progress = this.createProgressState({
+      ...this.progress,
+      isRunning: false,
+      currentStep: 'Cancelled',
+      current: 0,
+      total: 0,
+      statusLevel: 'info',
+      lastIssue: undefined,
+    });
+    this.currentOperation = null;
     this.emit('progress-update', this.progress);
   }
 
   cancelCurrentOperation(): boolean {
     if (this.currentOperation) {
       this.currentOperation.cancelled = true;
+      this.httpClient.cancelActiveRequests();
       this.progress = this.createProgressState({
         ...this.progress,
-        isRunning: false,
-        currentStep: 'Cancelled',
-        current: 0,
-        total: 0,
-        progress: 100,
+        isRunning: true,
+        currentStep: 'Cancelling...',
+        statusLevel: 'info',
+        lastIssue: undefined,
       });
       this.emit('progress-update', this.progress);
       return true;
@@ -526,6 +561,9 @@ export class RecNetService extends EventEmitter {
           `Fetched ${bulkData.accountsFetched} accounts, ${bulkData.roomsFetched} rooms, and ${bulkData.eventsFetched} events`
         );
       } catch (error) {
+        if ((error as Error).message === 'Operation cancelled') {
+          throw error;
+        }
         console.log(
           `Warning: Failed to fetch bulk data: ${(error as Error).message}`
         );
@@ -549,7 +587,9 @@ export class RecNetService extends EventEmitter {
         iterationDetails,
       };
     } catch (error) {
-      if ((error as Error).message !== 'Operation cancelled') {
+      if ((error as Error).message === 'Operation cancelled') {
+        this.setOperationCancelled();
+      } else {
         this.setOperationFailed((error as Error).message);
       }
       throw error;
@@ -804,6 +844,9 @@ export class RecNetService extends EventEmitter {
           `Fetched (feed) ${bulkData.accountsFetched} accounts, ${bulkData.roomsFetched} rooms, and ${bulkData.eventsFetched} events`
         );
       } catch (error) {
+        if ((error as Error).message === 'Operation cancelled') {
+          throw error;
+        }
         console.log(
           `Warning: Failed to fetch bulk data from feed collection: ${(error as Error).message}`
         );
@@ -827,7 +870,9 @@ export class RecNetService extends EventEmitter {
         iterationDetails,
       };
     } catch (error) {
-      if ((error as Error).message !== 'Operation cancelled') {
+      if ((error as Error).message === 'Operation cancelled') {
+        this.setOperationCancelled();
+      } else {
         this.setOperationFailed((error as Error).message);
       }
       throw error;
@@ -884,7 +929,8 @@ export class RecNetService extends EventEmitter {
       const existingPhotoFiles = (await fs.readdir(photosDir)).filter(file =>
         file.toLowerCase().endsWith('.jpg')
       ).length;
-      let remainingDownloadSlots = (maxPhotosToDownload || 0) - existingPhotoFiles;
+      let remainingDownloadSlots =
+        (maxPhotosToDownload || 0) - existingPhotoFiles;
 
       if (hasDownloadLimit && remainingDownloadSlots <= 0) {
         console.log(
@@ -939,46 +985,73 @@ export class RecNetService extends EventEmitter {
         if (hasDownloadLimit && remainingDownloadSlots <= 0) {
           skipped = totalPhotos - (alreadyDownloaded + newDownloads);
           break;
-        } 
-        else {
+        } else {
           remainingDownloadSlots--;
         }
 
-        promises.push(new Promise<DownloadResultItem>(async (resolve) => {
-          if (delay) { await this.delay(delay); }
-          await semaphore.acquire();
-          try {
-            const result = await this.downloadImage(photo, photosDir, feedDir, false);
-            const status = result.status;
-            if (status === 'downloaded') {
-              newDownloads++;
-              // result attempts can be undefined and we don't want to increment successful attempts
-              retryAttempts += (result.attempts || 1) - 1;
-              if (result.recoveredAfterRetry && result.recoveredAfterRetry === true) {
-                recoveredAfterRetry++;
+        promises.push(
+          new Promise<DownloadResultItem>((resolve, reject) => {
+            void (async () => {
+              if (delay) {
+                await this.delay(delay);
               }
-            } else if (status && (status.startsWith('already_exists') || status.startsWith('copied_from'))) {
-              alreadyDownloaded++;
-            } else if (status && (status === 'error' || status === 'failed')) {
-              failedDownloads++;
-            } else if (status && status === 'cancelled') {
-              skipped++;
-            }
-            resolve(result);
-          }
-          catch (error) {
-            // downloadImage already has error handling, if it throws, we'll assume it's fatal
-            throw error;
-          }
-          finally {
-            semaphore.release()
-            this.updateProgress('Downloading user photos...', processedCount, totalPhotos);
-            processedCount++;
-          };
-        }))
+              await semaphore.acquire();
+              try {
+                const result = await this.downloadImage(
+                  photo,
+                  photosDir,
+                  feedDir,
+                  false
+                );
+                const status = result.status;
+                if (status === 'downloaded') {
+                  newDownloads++;
+                  // result attempts can be undefined and we don't want to increment successful attempts
+                  retryAttempts += (result.attempts || 1) - 1;
+                  if (
+                    result.recoveredAfterRetry &&
+                    result.recoveredAfterRetry === true
+                  ) {
+                    recoveredAfterRetry++;
+                  }
+                } else if (
+                  status &&
+                  (status.startsWith('already_exists') ||
+                    status.startsWith('copied_from'))
+                ) {
+                  alreadyDownloaded++;
+                } else if (
+                  status &&
+                  (status === 'error' || status === 'failed')
+                ) {
+                  failedDownloads++;
+                } else if (status && status === 'cancelled') {
+                  skipped++;
+                }
+                resolve(result);
+              } catch (error) {
+                // downloadImage already has error handling, if it throws, we'll assume it's fatal
+                reject(error as Error);
+              } finally {
+                semaphore.release();
+                this.updateProgress(
+                  'Downloading user photos...',
+                  processedCount,
+                  totalPhotos
+                );
+                processedCount++;
+              }
+            })();
+          })
+        );
         delay += this.settings.interPageDelayMs;
       }
-      const downloadResults: DownloadResultItem[] = await Promise.all<DownloadResultItem>(promises);
+      const downloadResults: DownloadResultItem[] =
+        await Promise.all<DownloadResultItem>(promises);
+
+      if (this.isOperationCancelled()) {
+        throw new Error('Operation cancelled');
+      }
 
       this.setOperationComplete();
 
@@ -1002,7 +1075,9 @@ export class RecNetService extends EventEmitter {
         guidance: this.buildDownloadGuidance('user photos', downloadStats),
       };
     } catch (error) {
-      if ((error as Error).message !== 'Operation cancelled') {
+      if ((error as Error).message === 'Operation cancelled') {
+        this.setOperationCancelled();
+      } else {
         this.setOperationFailed((error as Error).message);
       }
       throw error;
@@ -1014,6 +1089,7 @@ export class RecNetService extends EventEmitter {
     token?: string
   ): Promise<DownloadResult> {
     await this.ensureSettingsLoaded();
+    this.currentOperation = { cancelled: false };
 
     try {
       this.resetProgressIssueState();
@@ -1039,8 +1115,6 @@ export class RecNetService extends EventEmitter {
         throw new Error('No feed photos found in the JSON file.');
       }
 
-
-
       const sortedPhotos = [...photos].sort((a, b) => {
         const timeA = a.CreatedAt
           ? new Date(a.CreatedAt).getTime()
@@ -1059,26 +1133,11 @@ export class RecNetService extends EventEmitter {
       const existingFeedFiles = (await fs.readdir(feedPhotosDir)).filter(file =>
         file.toLowerCase().endsWith('.jpg')
       ).length;
-      let remainingDownloadSlots = (maxPhotosToDownload || 0) - existingFeedFiles;
-      
-      if (this.currentOperation && this.currentOperation.cancelled) {
-        this.setOperationComplete();
-        return {
-          accountId,
-          feedPhotosDirectory: feedPhotosDir,
-          processedCount: 0,
-          downloadStats: {
-            totalPhotos,
-            alreadyDownloaded: existingFeedFiles,
-            newDownloads: 0,
-            failedDownloads: 0,
-            skipped: totalPhotos,
-            retryAttempts: 0,
-            recoveredAfterRetry: 0,
-          },
-          downloadResults: [],
-          totalResults: 0,
-        };
+      let remainingDownloadSlots =
+        (maxPhotosToDownload || 0) - existingFeedFiles;
+
+      if (this.isOperationCancelled()) {
+        throw new Error('Operation cancelled');
       }
 
       if (hasDownloadLimit && remainingDownloadSlots === 0) {
@@ -1131,50 +1190,77 @@ export class RecNetService extends EventEmitter {
       const promises = [];
       const semaphore = new Semaphore(PHOTO_DOWNLOAD_MAX_CONCURRENT_REQUESTS);
       for (const photo of sortedPhotos) {
-        if (hasDownloadLimit && remainingDownloadSlots <= 0) { 
+        if (hasDownloadLimit && remainingDownloadSlots <= 0) {
           skipped = totalPhotos - (alreadyDownloaded + newDownloads);
           break;
-        } 
-        else {
+        } else {
           remainingDownloadSlots--;
         }
 
-        promises.push(new Promise<DownloadResultItem>(async (resolve) => {
-          if (delay) { await this.delay(delay); }
-          await semaphore.acquire();
-          try {
-            const result = await this.downloadImage(photo, photosDir, feedPhotosDir, true);
-            const status = result.status;
-            if (status === 'downloaded') {
-              newDownloads++;
-              // result attempts can be undefined and we don't want to increment successful attempts
-              retryAttempts += (result.attempts || 1) - 1;
-              if (result.recoveredAfterRetry && result.recoveredAfterRetry === true) {
-                recoveredAfterRetry++;
+        promises.push(
+          new Promise<DownloadResultItem>((resolve, reject) => {
+            void (async () => {
+              if (delay) {
+                await this.delay(delay);
               }
-            } else if (status && (status.startsWith('already_exists') || status.startsWith('copied_from'))) {
-              alreadyDownloaded++;
-            } else if (status && (status === 'error' || status === 'failed')) {
-              failedDownloads++;
-            } else if (status && status === 'cancelled') {
-              skipped++;
-            }
-            resolve(result);
-          }
-          catch (error) {
-            // downloadImage already has error handling, if it throws, we'll assume it's fatal
-            throw error;
-          }
-          finally {
-            semaphore.release()
-            this.updateProgress('Downloading feed photos...', processedCount, totalPhotos);
-            processedCount++;
-          };
-        }))
+              await semaphore.acquire();
+              try {
+                const result = await this.downloadImage(
+                  photo,
+                  photosDir,
+                  feedPhotosDir,
+                  true
+                );
+                const status = result.status;
+                if (status === 'downloaded') {
+                  newDownloads++;
+                  // result attempts can be undefined and we don't want to increment successful attempts
+                  retryAttempts += (result.attempts || 1) - 1;
+                  if (
+                    result.recoveredAfterRetry &&
+                    result.recoveredAfterRetry === true
+                  ) {
+                    recoveredAfterRetry++;
+                  }
+                } else if (
+                  status &&
+                  (status.startsWith('already_exists') ||
+                    status.startsWith('copied_from'))
+                ) {
+                  alreadyDownloaded++;
+                } else if (
+                  status &&
+                  (status === 'error' || status === 'failed')
+                ) {
+                  failedDownloads++;
+                } else if (status && status === 'cancelled') {
+                  skipped++;
+                }
+                resolve(result);
+              } catch (error) {
+                // downloadImage already has error handling, if it throws, we'll assume it's fatal
+                reject(error as Error);
+              } finally {
+                semaphore.release();
+                this.updateProgress(
+                  'Downloading feed photos...',
+                  processedCount,
+                  totalPhotos
+                );
+                processedCount++;
+              }
+            })();
+          })
+        );
         delay += this.settings.interPageDelayMs;
       }
-      const downloadResults: DownloadResultItem[] = await Promise.all<DownloadResultItem>(promises);
-      
+      const downloadResults: DownloadResultItem[] =
+        await Promise.all<DownloadResultItem>(promises);
+
+      if (this.isOperationCancelled()) {
+        throw new Error('Operation cancelled');
+      }
+
       this.setOperationComplete();
 
       const downloadStats: DownloadStats = {
@@ -1197,14 +1283,22 @@ export class RecNetService extends EventEmitter {
         guidance: this.buildDownloadGuidance('feed photos', downloadStats),
       };
     } catch (error) {
-      if ((error as Error).message !== 'Operation cancelled') {
+      if ((error as Error).message === 'Operation cancelled') {
+        this.setOperationCancelled();
+      } else {
         this.setOperationFailed((error as Error).message);
       }
       throw error;
     }
   }
 
-  async downloadImage(photo: Photo, photosDir: string, feedPhotosDir: string, isFeed: boolean, token?: string): Promise<DownloadResultItem> {
+  async downloadImage(
+    photo: Photo,
+    photosDir: string,
+    feedPhotosDir: string,
+    isFeed: boolean,
+    token?: string
+  ): Promise<DownloadResultItem> {
     const photoId = this.normalizeId(photo.Id);
     const imageName = photo.ImageName;
     const photoUrl = buildCdnImageUrl(this.settings.cdnBase, imageName);
@@ -1238,7 +1332,10 @@ export class RecNetService extends EventEmitter {
     }
 
     // Check if photo exists in photos folder and copy it
-    const otherPhotoPath = path.join(isFeed ? photosDir : feedPhotosDir, `${photoId}.jpg`);
+    const otherPhotoPath = path.join(
+      isFeed ? photosDir : feedPhotosDir,
+      `${photoId}.jpg`
+    );
     if (await fs.pathExists(otherPhotoPath)) {
       await fs.copy(otherPhotoPath, photoPath);
       return {
@@ -1253,6 +1350,11 @@ export class RecNetService extends EventEmitter {
     try {
       const attempt = await this.downloadPhotoWithRetry(imageName, token);
       attemptsUsed = attempt.attempts;
+
+      if (this.isOperationCancelled()) {
+        throw new Error('Operation cancelled');
+      }
+
       let recoveredAfterRetry = false;
       if (
         attempt.attempts > 1 &&
@@ -1274,7 +1376,7 @@ export class RecNetService extends EventEmitter {
           url: photoUrl,
           attempts: attempt.attempts,
           retries: Math.max(0, attempt.attempts - 1),
-          recoveredAfterRetry
+          recoveredAfterRetry,
         };
       } else if (response) {
         return {
@@ -1398,7 +1500,9 @@ export class RecNetService extends EventEmitter {
     return path.join(accountDir, 'folder-meta.json');
   }
 
-  private async readFolderMeta(accountDir: string): Promise<FolderMetaV1 | null> {
+  private async readFolderMeta(
+    accountDir: string
+  ): Promise<FolderMetaV1 | null> {
     try {
       const metaPath = this.getFolderMetaPath(accountDir);
       if (!(await fs.pathExists(metaPath))) {
@@ -1611,7 +1715,9 @@ export class RecNetService extends EventEmitter {
         const failureReason =
           lastResponse.message ||
           lastResponse.error ||
-          (lastResponse.status ? `HTTP ${lastResponse.status}` : 'unknown_error');
+          (lastResponse.status
+            ? `HTTP ${lastResponse.status}`
+            : 'unknown_error');
         const issueMessage =
           attempts < PHOTO_DOWNLOAD_MAX_ATTEMPTS
             ? `Issue downloading ${imageName}: ${failureReason}. Retry ${attempts}/${PHOTO_DOWNLOAD_RETRY_COUNT} will start now.`
@@ -1621,7 +1727,8 @@ export class RecNetService extends EventEmitter {
           issueMessage,
           {
             retryIncrement: attempts < PHOTO_DOWNLOAD_MAX_ATTEMPTS ? 1 : 0,
-            failedItemIncrement: attempts >= PHOTO_DOWNLOAD_MAX_ATTEMPTS ? 1 : 0,
+            failedItemIncrement:
+              attempts >= PHOTO_DOWNLOAD_MAX_ATTEMPTS ? 1 : 0,
           }
         );
         console.warn(
@@ -1644,7 +1751,8 @@ export class RecNetService extends EventEmitter {
           issueMessage,
           {
             retryIncrement: attempts < PHOTO_DOWNLOAD_MAX_ATTEMPTS ? 1 : 0,
-            failedItemIncrement: attempts >= PHOTO_DOWNLOAD_MAX_ATTEMPTS ? 1 : 0,
+            failedItemIncrement:
+              attempts >= PHOTO_DOWNLOAD_MAX_ATTEMPTS ? 1 : 0,
           }
         );
         console.warn(
@@ -1747,6 +1855,7 @@ export class RecNetService extends EventEmitter {
         forceRoomsRefresh = false,
         forceEventsRefresh = false,
       } = options;
+      this.throwIfCancelled();
       const normalizedPhotos = this.normalizePhotos(photos);
       this.updateProgress('Extracting IDs from photos...', 0, 0, 0);
 
@@ -1764,6 +1873,7 @@ export class RecNetService extends EventEmitter {
         `Found ${accountIdsArray.length} unique account IDs, ${roomIdsArray.length} unique room IDs, and ${eventIdsArray.length} unique event IDs`
       );
 
+      this.throwIfCancelled();
       const accountDir = path.join(this.settings.outputRoot, accountId);
       await fs.ensureDir(accountDir);
 
@@ -1782,6 +1892,7 @@ export class RecNetService extends EventEmitter {
 
       // Fetch and save account data
       if (accountIdsArray.length > 0) {
+        this.throwIfCancelled();
         this.updateProgress(
           'Checking account cache',
           0,
@@ -1837,6 +1948,7 @@ export class RecNetService extends EventEmitter {
             100
           );
         } else {
+          this.throwIfCancelled();
           this.updateProgress(
             `Downloading account data (${missingAccountIds.length} missing of ${accountIdsArray.length})...`,
             0,
@@ -1848,6 +1960,7 @@ export class RecNetService extends EventEmitter {
             missingAccountIds,
             token
           );
+          this.throwIfCancelled();
           const normalizedAccounts = Array.isArray(accountsData)
             ? this.normalizeAccounts(accountsData)
             : [];
@@ -1867,7 +1980,10 @@ export class RecNetService extends EventEmitter {
             spaces: 2,
           });
 
-          const owner = this.computeOwnerFromAccounts(mergedAccounts, accountId);
+          const owner = this.computeOwnerFromAccounts(
+            mergedAccounts,
+            accountId
+          );
           if (owner) {
             await this.writeFolderMeta(accountDir, accountId, { owner });
           }
@@ -1886,6 +2002,7 @@ export class RecNetService extends EventEmitter {
 
       // Fetch and save room data
       if (roomIdsArray.length > 0) {
+        this.throwIfCancelled();
         this.updateProgress('Checking rooms cache', 0, roomIdsArray.length, 0);
 
         let cachedRooms: RoomDto[] = [];
@@ -1919,6 +2036,7 @@ export class RecNetService extends EventEmitter {
             100
           );
         } else {
+          this.throwIfCancelled();
           this.updateProgress(
             `Downloading room data (${missingRoomIds.length} missing of ${roomIdsArray.length})...`,
             0,
@@ -1929,6 +2047,7 @@ export class RecNetService extends EventEmitter {
             missingRoomIds,
             token
           );
+          this.throwIfCancelled();
           const normalizedRooms = Array.isArray(roomsData)
             ? this.normalizeRooms(roomsData)
             : [];
@@ -1959,6 +2078,7 @@ export class RecNetService extends EventEmitter {
 
       // Fetch and save event data
       if (eventIdsArray.length > 0) {
+        this.throwIfCancelled();
         this.updateProgress(
           'Checking events cache',
           0,
@@ -2001,6 +2121,7 @@ export class RecNetService extends EventEmitter {
             100
           );
         } else {
+          this.throwIfCancelled();
           this.updateProgress(
             `Downloading event data (${missingEventIds.length} missing of ${eventIdsArray.length})...`,
             0,
@@ -2011,6 +2132,7 @@ export class RecNetService extends EventEmitter {
             missingEventIds,
             token
           );
+          this.throwIfCancelled();
           const normalizedEvents = Array.isArray(eventsData)
             ? this.normalizeEvents(eventsData)
             : [];
@@ -2049,18 +2171,40 @@ export class RecNetService extends EventEmitter {
   }
 
   async lookupAccountById(accountId: string): Promise<AccountInfo> {
+    this.currentOperation = { cancelled: false };
     try {
       return await this.accountsController.lookupAccountById(accountId);
     } catch (error) {
-      throw new Error(`Failed to lookup account by account ID: ${(error as Error).message}`);
+      if ((error as Error).message === 'Operation cancelled') {
+        this.setOperationCancelled();
+        throw error;
+      }
+      throw new Error(
+        `Failed to lookup account by account ID: ${(error as Error).message}`
+      );
+    } finally {
+      if (this.currentOperation && !this.currentOperation.cancelled) {
+        this.currentOperation = null;
+      }
     }
   }
 
   async lookupAccountByUsername(username: string): Promise<AccountInfo> {
+    this.currentOperation = { cancelled: false };
     try {
       return await this.accountsController.lookupAccountByUsername(username);
     } catch (error) {
-      throw new Error(`Failed to lookup account by username: ${(error as Error).message}`);
+      if ((error as Error).message === 'Operation cancelled') {
+        this.setOperationCancelled();
+        throw error;
+      }
+      throw new Error(
+        `Failed to lookup account by username: ${(error as Error).message}`
+      );
+    } finally {
+      if (this.currentOperation && !this.currentOperation.cancelled) {
+        this.currentOperation = null;
+      }
     }
   }
 
@@ -2068,10 +2212,19 @@ export class RecNetService extends EventEmitter {
     username: string,
     token?: string
   ): Promise<AccountInfo[]> {
+    this.currentOperation = { cancelled: false };
     try {
       return await this.accountsController.searchAccounts(username, token);
     } catch (error) {
+      if ((error as Error).message === 'Operation cancelled') {
+        this.setOperationCancelled();
+        throw error;
+      }
       throw new Error(`Failed to search accounts: ${(error as Error).message}`);
+    } finally {
+      if (this.currentOperation && !this.currentOperation.cancelled) {
+        this.currentOperation = null;
+      }
     }
   }
 
@@ -2116,9 +2269,7 @@ export class RecNetService extends EventEmitter {
             }
           } else if (entry.isFile()) {
             const isLegacyMetadata =
-              /.+_(photos|feed|accounts|rooms|events)\.json$/i.test(
-                entry.name
-              );
+              /.+_(photos|feed|accounts|rooms|events)\.json$/i.test(entry.name);
             if (isLegacyMetadata) {
               await fs.remove(entryPath);
               removedLegacyFiles++;
@@ -2307,7 +2458,10 @@ export class RecNetService extends EventEmitter {
               const normalized = Array.isArray(accountsData)
                 ? this.normalizeAccounts(accountsData)
                 : [];
-              const owner = this.computeOwnerFromAccounts(normalized, accountId);
+              const owner = this.computeOwnerFromAccounts(
+                normalized,
+                accountId
+              );
               if (owner) {
                 displayLabel = owner.displayLabel;
                 await this.writeFolderMeta(accountDir, accountId, { owner });

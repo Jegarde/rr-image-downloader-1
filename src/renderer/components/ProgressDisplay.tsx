@@ -39,6 +39,7 @@ interface ProgressDisplayProps {
   startedAt?: number | null;
   durationMs?: number | null;
   onClose?: () => void;
+  onCancel?: () => void | Promise<void>;
   onOpenOperationResults?: () => void;
   onOpenDownloadPanel?: () => void;
   onRetryDownload?: () => void | Promise<void>;
@@ -51,6 +52,7 @@ export const ProgressDisplay: React.FC<ProgressDisplayProps> = ({
   startedAt = null,
   durationMs = null,
   onClose,
+  onCancel,
   onOpenOperationResults,
   onOpenDownloadPanel,
   onRetryDownload,
@@ -395,6 +397,14 @@ export const ProgressDisplay: React.FC<ProgressDisplayProps> = ({
               {progress.currentStep || 'Waiting to start'}
             </div>
           </>
+        )}
+
+        {progress.isRunning && onCancel && (
+          <div className="flex flex-wrap gap-2 border-t border-border/60 pt-3">
+            <Button variant="destructive" size="sm" onClick={() => void onCancel()}>
+              Cancel download
+            </Button>
+          </div>
         )}
 
         {isCancelled && !progress.isRunning && (
